@@ -63,6 +63,7 @@ class Beanstream(object):
         self.hash_algorithm = params.get('hash_algorithm', None)
         self.username = params.get('username', None)
         self.password = params.get('password', None)
+        self.payment_passcode = params.get('payment_passcode', None)
         self.payment_profile_passcode = params.get('payment_profile_passcode', None)
         self.recurring_billing_passcode = params.get('recurring_billing_passcode', None)
 

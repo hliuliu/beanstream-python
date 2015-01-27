@@ -19,9 +19,11 @@ import hashlib
 import logging
 import random
 import string
+import base64
 import urllib
-import urllib2
-import urlparse
+from urllib.request import urlopen
+from urllib.parse import urlencode
+import time
 
 from beanstream import errors
 from beanstream.response_codes import response_codes
@@ -75,8 +77,8 @@ class Transaction(object):
 
         # hashing is applicable only to requests sent to the process
         # transaction API.
-        data = urllib.urlencode(self.params)
-        if self.beanstream.HASH_VALIDATION and self.url == self.URLS['process_transaction']:
+        data = urlencode(self.params)
+        '''if self.beanstream.HASH_VALIDATION and self.url == self.URLS['process_transaction']:
             if self.beanstream.hash_algorithm == 'MD5':
                 hashobj = hashlib.md5()
             elif self.beanstream.hash_algorithm == 'SHA1':
@@ -84,20 +86,27 @@ class Transaction(object):
             else:
                 log.error('Hash method %s is not MD5 or SHA1', self.beanstream.hash_algorithm)
                 raise errors.ConfigurationException('Hash method must be MD5 or SHA1')
-            hashobj.update(data + self.beanstream.hashcode)
+            hashobj.update(data + urlencode({'hashValue' : self.beanstream.hashcode}))
             hash_value = hashobj.hexdigest()
             data += '&hashValue=%s' % hash_value
-
+        '''
+        auth = base64.b64encode( (str(self.beanstream.merchant_id)+':'+self.beanstream.payment_passcode).encode('utf-8') )
+        passcode = 'Passcode '+str(auth.decode('utf-8'))
+        
         log.debug('Sending to %s: %s', self.url, data)
-
-        res = urllib2.urlopen(self.url, data)
-
+        
+        request = urllib.request.Request(self.url)
+        request.add_header('Authorization', passcode)
+        res = urlopen(request, bytes(data, 'utf-8'))
+			
         if res.code != 200:
             log.error('response code not OK: %s', res.code)
             return False
 
+        
         body = res.read()
-
+        body = body.decode('utf-8')
+		
         if body == 'Empty hash value':
             log.error('hash validation required')
             return False
@@ -109,12 +118,14 @@ class Transaction(object):
         return self.response_class(response, *self.response_params)
 
     def parse_raw_response(self, body):
-        return urlparse.parse_qs(body)
+        return urllib.parse.parse_qs(body)
 
     def _generate_order_number(self):
-        """ Generate a random 30-digit alphanumeric string.
+        """ Generate a random 10-digit alphanumeric string prefixed with a timestamp.
         """
-        self.order_number = ''.join((random.choice(string.ascii_lowercase + string.digits) for _ in xrange(30)))
+        t = str(time.time())
+        n = str(random.randint(0, 1000))
+        self.order_number = t+n
 
     def _process_amount(self, amount):
         decimal_amount = decimal.Decimal(amount)

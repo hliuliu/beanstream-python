@@ -17,7 +17,7 @@ limitations under the License.
 import calendar
 from datetime import date
 
-import errors
+from beanstream import errors
 
 
 class CreditCard:

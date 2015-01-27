@@ -116,6 +116,7 @@ class PurchaseResponse(transaction.Response):
 
     def approved(self):
         ''' Boolean if the transaction was approved or not '''
+        print (self.resp)
         return self.resp.get('trnApproved', ['0'])[0] == '1'
 
     def auth_code(self):
