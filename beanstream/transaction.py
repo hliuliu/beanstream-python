@@ -67,7 +67,7 @@ class Transaction(object):
         self.response_params = []
 
         # default to transaction processing
-        self.url = self.URLS['process_transaction']
+        #self.url = self.URLS['process_transaction']
 
     def validate(self):
         pass
@@ -90,7 +90,19 @@ class Transaction(object):
             hash_value = hashobj.hexdigest()
             data += '&hashValue=%s' % hash_value
         '''
-        auth = base64.b64encode( (str(self.beanstream.merchant_id)+':'+self.beanstream.payment_passcode).encode('utf-8') )
+
+        # do switch statement for which passcode to use
+        apicode = None
+        if (self.url == self.URLS['process_transaction']):
+            apicode = self.beanstream.payment_passcode
+        elif (self.url == self.URLS['recurring_billing']):
+            apicode = self.beanstream.recurring_billing_passcode
+        elif (self.url == self.URLS['payment_profile']):
+            apicode = self.beanstream.payment_profile_passcode
+        else:
+            apicode = self.beanstream.reporting_passcode
+
+        auth = base64.b64encode( (str(self.beanstream.merchant_id)+':'+apicode).encode('utf-8') )
         passcode = 'Passcode '+str(auth.decode('utf-8'))
         
         log.debug('Sending to %s: %s', self.url, data)
