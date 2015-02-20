@@ -25,3 +25,6 @@ class ConfigurationException(Error):
 class ValidationException(Error):
     pass
 
+class RedirectionException(Error):
+   pass
+
