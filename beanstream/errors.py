@@ -25,10 +25,11 @@ class ConfigurationException(Error):
 class ValidationException(Error):
     pass
 
-# define a superclass BeanStreamApiException
+# define a superclass BeanstreamApiException
 # Author: Haggai Liu
 
-
+class BeanstreamApiException(Error):
+   pass
 
 
 
