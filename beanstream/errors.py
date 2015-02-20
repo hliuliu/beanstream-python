@@ -25,6 +25,13 @@ class ConfigurationException(Error):
 class ValidationException(Error):
     pass
 
+# define a superclass BeanStreamApiException
+# Author: Haggai Liu
+
+
+
+
+
 class RedirectionException(Error):
     pass
 
