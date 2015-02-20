@@ -26,5 +26,24 @@ class ValidationException(Error):
     pass
 
 class RedirectionException(Error):
+    pass
+
+class InvalidRequestException(Error):
+    pass
+
+class UnAuthorizedException(Error):
+    pass
+
+class BusinessRuleException(Error):
+    pass
+
+class ForbiddenException(Error):
+    pass
+
+class InvalidRequestException(Error):
+    pass
+ 
+class InternalServerException(Error):
    pass
+
 
