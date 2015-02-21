@@ -31,27 +31,43 @@ class ValidationException(Error):
 class BeanstreamApiException(Error):
    pass
 
+def getMappedException(httpstatuscode):
+   code=str(httpstatuscode)
+   if code=='302':
+      return RedirectionError
+   if code[0]=='4':
+      code=code[1:]
+      if code in ['00','05','15']:
+         return InvalidRequestException
+      if code[0]=='0':
+         code=code[1:]
+         error_dict={
+            '1':UnAuthorizedException,
+            '2':BusinessRuleException,
+            '3':ForbiddenException
+            }
+         if code in error_dict:
+            return error_dict[code]
+   return InternalServerException
 
 
-class RedirectionException(Error):
+
+class RedirectionException(Error):#HTTP status code 302
     pass
 
-class InvalidRequestException(Error):
+class InvalidRequestException(Error):#HTTP status code 400,405,415
     pass
 
-class UnAuthorizedException(Error):
+class UnAuthorizedException(Error):#HTTP status code 401
     pass
 
-class BusinessRuleException(Error):
+class BusinessRuleException(Error):#HTTP status code 402
     pass
 
-class ForbiddenException(Error):
-    pass
-
-class InvalidRequestException(Error):
+class ForbiddenException(Error):#HTTP status code 403
     pass
  
-class InternalServerException(Error):
+class InternalServerException(Error):#default
    pass
 
 
