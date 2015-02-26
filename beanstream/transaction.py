@@ -58,16 +58,9 @@ class Transaction(object):
 
         self.params = {}
 
-        if self.beanstream.USERNAME_VALIDATION:
-            self.params['username'] = self.beanstream.username
-            self.params['password'] = self.beanstream.password
-
         self._generate_order_number()
         self.params['trnOrderNumber'] = self.order_number
         self.response_params = []
-
-        # default to transaction processing
-        #self.url = self.URLS['process_transaction']
 
     def validate(self):
         pass
@@ -102,9 +95,14 @@ class Transaction(object):
         else:
             apicode = self.beanstream.reporting_passcode
 
+        if (apicode is None):
+            log.error('No API Passcode specified for url %s', self.url)
+            return False
+        
         auth = base64.b64encode( (str(self.beanstream.merchant_id)+':'+apicode).encode('utf-8') )
         passcode = 'Passcode '+str(auth.decode('utf-8'))
-        
+        print("passcode: "+passcode)
+        print('Sending.... '+data)
         log.debug('Sending to %s: %s', self.url, data)
         
         request = urllib.request.Request(self.url)
