@@ -23,24 +23,20 @@ the beanstream account configuration.
 
     from beanstream import gateway
     beangw = gateway.Beanstream(
-        hash_validation=hash_validation,
-        require_billing_address=require_billing_address,
-        require_cvd=require_cvd)
+        True, #require billing address
+        True) #require CVD code
     beangw.configure(
-        merchant_id,
-        company,
-        username,
-        password,
-        hashcode=hashcode,
-        hash_algorithm=hash_algorithm,
-        payment_profile_passcode=payment_profile_passcode,
-        recurring_billing_passcode=recurring_billing_passcode)
+        YOUR_MERCHANT_ID,
+        YOUR_PAYMENT_API_PASSCODE,
+		YOUR_PROFILES_API_PASSCODE,
+		YOUR_RECURRING_BILLING_API_PASSCODE,
+		YOUR_REPORTING_API_PASSCODE)
 
 The `gateway` object has methods for constructing `transaction`s to the
 Beanstream API. A `transaction` encapsulates the information involved in a
 request against the beanstream API.
 
-Ex. Making a one off transation:
+Ex. Making a one off credit card transaction:
 
     from beanstream import gateway, billing
     
@@ -67,21 +63,21 @@ Then run the command `nosetests tests/simple_t.py`.
 The tests attempt to make requests against the Beanstream API using the test
 credit cards given for sandbox use.
 
+This project comes with the API keys for a Beanstream test account that you can use if you haven't created your own yet.
+
 Example config file:
 
-    # these should match your beanstream account settings
-    hash_validation: true
-    require_billing_address: true
+    # these are values for the sample test account
+    [rules]
+    require_billing_address: false
     require_cvd: true
-    
+
     [beanstream]
-    merchant_id: xxyyzz
-    company: foo corp
-    username: foo_user
-    password: foo_pass
-    hashcode: api_hc
-    hash_algorithm: SHA1
-    payment_profile_passcode: pp_pass
-    recurring_billing_passcode: rb_pass
+    merchant_id: 300200578
+    payment_passcode: 4BaD82D9197b4cc4b70a221911eE9f70
+    payment_profile_passcode: D97D3BE1EE964A6193D17A571D9FBC80
+    reporting_passcode: 4e6Ff318bee64EA391609de89aD4CF5d
+    recurring_billing_passcode=D5A56B15F58d404681aC1DE1C3fE80c4
 
-
+## Example Code
+To see working examples of payments, recurring billing, payment profiles, and reporting, take a look at tests/simple_t.py
