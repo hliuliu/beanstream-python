@@ -1,2 +1,5 @@
 *.pyc
-beanstream.cfg
+build
+dist
+xbuild
+python_beanstream.egg-info

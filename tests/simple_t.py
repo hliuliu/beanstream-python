@@ -1,54 +1,52 @@
-import ConfigParser
-from datetime import date
+import configparser
+from datetime import date, datetime, timedelta
 import unittest
+import logging
 
 from beanstream import gateway
 from beanstream import billing
-
+from beanstream import errors
+from beanstream import reports
+from beanstream.reports import Criteria, Fields, Operator
 
 class BeanstreamTests(unittest.TestCase):
 
     def setUp(self):
-        config = ConfigParser.SafeConfigParser()
+        log = logging.getLogger('beanstream.transaction')
+        log.setLevel(logging.getLevelName('WARNING'))
+        
+        config = configparser.ConfigParser()
         config.read('beanstream.cfg')
         merchant_id = config.get('beanstream', 'merchant_id')
-        company = config.get('beanstream', 'company')
-        username = config.get('beanstream', 'username')
-        password = config.get('beanstream', 'password')
 
-        hashcode = None
-        if config.has_option('beanstream', 'hashcode'):
-            hashcode = config.get('beanstream', 'hashcode')
-
-        hash_algorithm = None
-        if config.has_option('beanstream', 'hash_algorithm'):
-            hash_algorithm = config.get('beanstream', 'hash_algorithm')
+        payment_passcode = None
+        if config.has_option('beanstream', 'payment_passcode'):
+            payment_passcode = config.get('beanstream', 'payment_passcode')
 
         payment_profile_passcode = None
         if config.has_option('beanstream', 'payment_profile_passcode'):
             payment_profile_passcode = config.get('beanstream', 'payment_profile_passcode')
 
+        reporting_passcode = None
+        if config.has_option('beanstream', 'reporting_passcode'):
+            reporting_passcode = config.get('beanstream', 'reporting_passcode')
+
         recurring_billing_passcode = None
         if config.has_option('beanstream', 'recurring_billing_passcode'):
             recurring_billing_passcode = config.get('beanstream', 'recurring_billing_passcode')
 
-        hash_validation = config.has_option('config', 'hash_validation')
         require_billing_address = config.has_option('config', 'require_billing_address')
         require_cvd = config.has_option('config', 'require_cvd')
 
         self.beanstream = gateway.Beanstream(
-                hash_validation=hash_validation,
                 require_billing_address=require_billing_address,
                 require_cvd=require_cvd)
         self.beanstream.configure(
                 merchant_id,
-                company,
-                username,
-                password,
-                hashcode=hashcode,
-                hash_algorithm=hash_algorithm,
+                payment_passcode=payment_passcode,
                 payment_profile_passcode=payment_profile_passcode,
-                recurring_billing_passcode=recurring_billing_passcode)
+                recurring_billing_passcode=recurring_billing_passcode,
+                reporting_passcode=reporting_passcode)
 
         self.approved_cards = {'visa': {'number': '4030000010001234', 'cvd': '123'},
                                '100_visa': {'number': '4504481742333', 'cvd': '123'},
@@ -164,9 +162,9 @@ class BeanstreamTests(unittest.TestCase):
         assert resp.approved()
 
         customer_code = resp.customer_code()
-
+        print("customer code: "+customer_code)
         txn = self.beanstream.purchase_with_payment_profile(50, customer_code)
-        txn.set_comments('%s:test_payment_profiles:purchase_with_payment_profile' % __name__)
+        txn.set_comments('test_payment_profiles-purchase_with_payment_profile')
         resp = txn.commit()
         assert resp.approved()
 
@@ -176,7 +174,7 @@ class BeanstreamTests(unittest.TestCase):
         assert resp.approved()
 
         txn = self.beanstream.purchase_with_payment_profile(50, customer_code)
-        txn.set_comments('%s:test_payment_profiles:purchase_with_payment_profile' % __name__)
+        txn.set_comments('test_payment_profiles-purchase_with_payment_profile')
         resp = txn.commit()
         assert not resp.approved()
 
@@ -201,21 +199,106 @@ class BeanstreamTests(unittest.TestCase):
         assert resp.approved()
         assert resp.account_id() is not None
 
-    def test_simple_report(self):
-        txn = self.beanstream.get_transaction_report()
-        txn.set_date_range(date(2011, 8, 12), date(2011, 8, 14))
+    def test_reports(self):
+        # make a test transaction
+        today = date.today()
+        visa = self.approved_cards['visa']
+        card = billing.CreditCard(
+            'John Doe',
+            visa['number'],
+            str(today.month), str(today.year + 3),
+            visa['cvd'])
 
+        txn = self.beanstream.purchase(50, card, self.billing_address)
         resp = txn.commit()
+        assert resp.approved()
+        transId = resp.transaction_id()
 
-        assert len(resp) == 0
-
-    def test_transaction_set_report(self):
-        transaction_ids = [10000283, 10000301, 10000290]
-        txn = self.beanstream.get_transaction_set_report(transaction_ids)
+        # query for our transaction
+        startDate = datetime.now() - timedelta(hours=1) #1 hour ago
+        endDate = datetime.now()   #now
+        
+        txn = self.beanstream.query_transactions()
+        txn.set_query_params(startDate, endDate, 1, 10) #1 and 10 are the paging numbers
         resp = txn.commit()
-
-        assert len(resp) == 3
-
+        
+        assert resp['records'] is not None
+        assert len(resp['records']) > 0
+        
         for item in resp:
-            assert int(item['transaction_id']) in transaction_ids
+            print("item: "+item)
+        
+            
+    def test_reports_criteria(self):
+        # make a test transaction
+        today = date.today()
+        visa = self.approved_cards['visa']
+        card = billing.CreditCard(
+            'John Doe',
+            visa['number'],
+            str(today.month), str(today.year + 3),
+            visa['cvd'])
 
+        txn = self.beanstream.purchase(39.99, card, self.billing_address)
+        resp = txn.commit()
+        assert resp.approved()
+        transId = resp.transaction_id()
+
+        # query for our transaction
+        startDate = datetime.now() - timedelta(hours=1) #1 hour ago
+        endDate = datetime.now()   #now
+        
+        txn = self.beanstream.query_transactions()
+        criteria = [Criteria(Fields.TransactionId, Operator('='), transId)]
+        txn.set_query_params(startDate, endDate, 1, 10, criteria) #1 and 10 are the paging numbers
+        resp = txn.commit()
+        
+        assert resp['records'] is not None
+        assert len(resp['records']) == 1
+        
+        for item in resp['records']:
+            assert str(item['trn_id']) == transId
+        
+
+    def test_get_transaction(self):
+        # make a test transaction
+        today = date.today()
+        visa = self.approved_cards['visa']
+        card = billing.CreditCard(
+            'John Doe',
+            visa['number'],
+            str(today.month), str(today.year + 3),
+            visa['cvd'])
+
+        txn = self.beanstream.purchase(50, card, self.billing_address)
+        resp = txn.commit()
+        assert resp.approved()
+        transId = resp.transaction_id()
+
+        txn = self.beanstream.get_transaction(transId)
+        resp = txn.commit()
+
+        assert resp is not None
+        assert str(resp['id']) == transId
+   
+    def test_exceptions(self):
+        errorGenerator = errors.TestErrorGenerator(errors.BeanstreamApiException())
+        self.beanstream.setTestErrorGenerator(errorGenerator)
+        
+        today = date.today()
+        visa = self.approved_cards['visa']
+        card = billing.CreditCard(
+            'John Doe',
+            visa['number'],
+            str(today.month), str(today.year + 3),
+            visa['cvd'])
+
+        txn = self.beanstream.purchase(50, card, self.billing_address)
+        txn.set_comments('test_exceptions')
+        resp = txn.commit()
+        assert isinstance(resp, errors.BeanstreamApiException)
+        
+        
+        
+if __name__ == '__main__':
+    unittest.main()

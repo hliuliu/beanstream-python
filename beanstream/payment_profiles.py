@@ -170,7 +170,8 @@ class PaymentProfileResponse(transaction.Response):
         return self.resp.get('trnOrderNumber', [None])[0]
 
     def approved(self):
-        return self.resp.get('responseCode', ['0'])[0] == '1' and self.resp.get('trnApproved', ['1'])[0] == '1'
+        success = self.resp.get('responseCode', ['0'])[0] == '1' and self.resp.get('httpStatusCode', ['0'])[0] == '200' and self.resp.get('customerCode', [None])[0] is not None
+        return success
 
     def status(self):
         if 'status' in self.resp:

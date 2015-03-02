@@ -21,9 +21,11 @@ import random
 import string
 import base64
 import urllib
+import http.client
 from urllib.request import urlopen
 from urllib.parse import urlencode
 import time
+import json
 
 from beanstream import errors
 from beanstream.response_codes import response_codes
@@ -34,11 +36,13 @@ log = logging.getLogger('beanstream.transaction')
 class Transaction(object):
 
     URLS = {
-        'process_transaction'   : 'https://www.beanstream.com/scripts/process_transaction.asp',
-        'recurring_billing'     : 'https://www.beanstream.com/scripts/recurring_billing.asp',
-        'payment_profile'       : 'https://www.beanstream.com/scripts/payment_profile.asp',
-        'report_download'       : 'https://www.beanstream.com/scripts/report_download.asp',
-        'report'                : 'https://www.beanstream.com/scripts/report.aspx',
+        'process_transaction'   : '/scripts/process_transaction.asp',
+        'recurring_billing'     : '/scripts/recurring_billing.asp',
+        'payment_profile'       : '/scripts/payment_profile.asp',
+        'report_download'       : '/scripts/report_download.asp',
+        'report'                : '/scripts/report.aspx',
+        'rest_payments'         : '/api/v1/payments',
+        'rest_reports'          : '/api/v1/reports'
     }
 
     TRN_TYPES = {
@@ -56,32 +60,31 @@ class Transaction(object):
         self.beanstream = beanstream
         self.response_class = Response
 
+        self.restful = False
+        
         self.params = {}
 
         self._generate_order_number()
         self.params['trnOrderNumber'] = self.order_number
         self.response_params = []
-
+        self.request_type = None
+           
     def validate(self):
         pass
 
     def commit(self):
         self.validate()
 
+        '''
         # hashing is applicable only to requests sent to the process
         # transaction API.
-        data = urlencode(self.params)
-        '''if self.beanstream.HASH_VALIDATION and self.url == self.URLS['process_transaction']:
-            if self.beanstream.hash_algorithm == 'MD5':
-                hashobj = hashlib.md5()
-            elif self.beanstream.hash_algorithm == 'SHA1':
-                hashobj = hashlib.sha1()
-            else:
-                log.error('Hash method %s is not MD5 or SHA1', self.beanstream.hash_algorithm)
-                raise errors.ConfigurationException('Hash method must be MD5 or SHA1')
-            hashobj.update(data + urlencode({'hashValue' : self.beanstream.hashcode}))
-            hash_value = hashobj.hexdigest()
-            data += '&hashValue=%s' % hash_value
+        if self.restful:
+            self.generate_rest_json()
+            data = self.params['rest']
+            #print("================ sending json:")
+            #print(data)
+        else:
+            data = urlencode(self.params)
         '''
 
         # do switch statement for which passcode to use
@@ -92,41 +95,112 @@ class Transaction(object):
             apicode = self.beanstream.recurring_billing_passcode
         elif (self.url == self.URLS['payment_profile']):
             apicode = self.beanstream.payment_profile_passcode
+        elif (self.url == self.URLS['rest_payments']):
+            apicode = self.beanstream.payment_passcode
         else:
             apicode = self.beanstream.reporting_passcode
 
         if (apicode is None):
             log.error('No API Passcode specified for url %s', self.url)
             return False
+
         
+                
         auth = base64.b64encode( (str(self.beanstream.merchant_id)+':'+apicode).encode('utf-8') )
         passcode = 'Passcode '+str(auth.decode('utf-8'))
-        print("passcode: "+passcode)
-        print('Sending.... '+data)
+
+        #for testing exception handling
+        if self.beanstream.testErrorGenerator is not None:
+            return self.beanstream.testErrorGenerator.generateError()
+        
+
+        if self.restful:
+            return self.process_rest(passcode)           #REST API
+        else:
+            return self.process_query_param(passcode)    #Classic QueryParam API
+
+
+    def handle_errors(self, response):
+        #non-OK response occured, return error
+        if response.status != 200:
+            message = response.read()
+            message = message.decode('utf-8')
+            log.error('response code not OK: %s message: ', response.status, message)
+            return errors.getMappedException(response.status)
+        else:
+            return None
+
+    '''
+    Submit and process requests to the REST API.
+    '''
+    def process_rest(self, passcode):
+        self.generate_rest_json()
+        data = self.params['rest']
+
+        self.populate_url()
         log.debug('Sending to %s: %s', self.url, data)
         
-        request = urllib.request.Request(self.url)
-        request.add_header('Authorization', passcode)
-        res = urlopen(request, bytes(data, 'utf-8'))
-			
-        if res.code != 200:
-            log.error('response code not OK: %s', res.code)
-            return errors.getMappedException(res.code)
+        requestType = self.request_type
+        if requestType is None:
+            if data is None:
+                requestType = 'GET'
+            else:
+                requestType = 'POST'
+        headers={
+            'Content-Type': 'application/json',
+            'Authorization': passcode
+        }
+        connection = http.client.HTTPSConnection('www.beanstream.com')
+        try:
+            connection.request(requestType, self.url, data, headers)
+            response = connection.getresponse()
 
+            errors = self.handle_errors(response)
+            if errors is not None:
+                return errors
+
+            body = response.read()
+            body = body.decode('utf-8')
+            
+            return json.loads(body)
+        finally:
+            connection.close()
+
+
+    '''
+    Submit and process requests to the QueryString API.
+    '''
+    def process_query_param(self, passcode):
+        data = urlencode(self.params)
+
+        log.debug('Sending to %s: %s', self.url, data)
+        request = urllib.request.Request('https://www.beanstream.com'+self.url)
+        request.add_header('Authorization', passcode)
+        
+        res = urlopen(request, bytes(data, 'utf-8'))
+
+        errors = self.handle_errors(res)
+        if errors is not None:
+            return errors
         
         body = res.read()
         body = body.decode('utf-8')
-		
-        if body == 'Empty hash value':
-            log.error('hash validation required')
-            return False
 
         response = self.parse_raw_response(body)
         log.debug('Beanstream response: %s', body)
         log.debug(response)
 
         return self.response_class(response, *self.response_params)
+    
+        
+    ''' Overwrite in Restful subclasses'''
+    def generateRestJson(self):
+        pass
 
+    ''' Overwrite in Restful subclasses'''
+    def populate_url(self):
+        pass
+    
     def parse_raw_response(self, body):
         return urllib.parse.parse_qs(body)
 
@@ -162,6 +236,9 @@ class Transaction(object):
                 self.params['ref%s' % ref_idx] = ref
 
 
+'''
+    Optional response object wrapper used by non-restful request responses.
+'''
 class Response(object):
 
     def __init__(self, resp_dict):

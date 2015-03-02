@@ -17,19 +17,36 @@ limitations under the License.
 class Error(Exception):
     pass
 
-
-class ConfigurationException(Error):
-    pass
-
-
-class ValidationException(Error):
-    pass
-
 # define a superclass BeanstreamApiException
 # Author: Haggai Liu
 
 class BeanstreamApiException(Error):
    pass
+
+class ConfigurationException(BeanstreamApiException):
+    pass
+
+class ValidationException(BeanstreamApiException): #parameters to a request were incorrect
+    pass
+
+class RedirectionException(BeanstreamApiException):#HTTP status code 302
+    pass
+
+class InvalidRequestException(BeanstreamApiException):#HTTP status code 400,405,415
+    pass
+
+class UnAuthorizedException(BeanstreamApiException):#HTTP status code 401
+    pass
+
+class BusinessRuleException(BeanstreamApiException):#HTTP status code 402
+    pass
+
+class ForbiddenException(BeanstreamApiException):#HTTP status code 403
+    pass
+ 
+class InternalServerException(BeanstreamApiException):#default
+   pass
+
 
 def getMappedException(httpstatuscode):
    code=str(httpstatuscode)
@@ -52,22 +69,9 @@ def getMappedException(httpstatuscode):
 
 
 
-class RedirectionException(Error):#HTTP status code 302
-    pass
+class TestErrorGenerator(object):
+    def __init__(self, error):
+        self.exception = error
 
-class InvalidRequestException(Error):#HTTP status code 400,405,415
-    pass
-
-class UnAuthorizedException(Error):#HTTP status code 401
-    pass
-
-class BusinessRuleException(Error):#HTTP status code 402
-    pass
-
-class ForbiddenException(Error):#HTTP status code 403
-    pass
- 
-class InternalServerException(Error):#default
-   pass
-
-
+    def generateError(self):
+        return self.exception

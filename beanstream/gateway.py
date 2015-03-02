@@ -22,61 +22,37 @@ class Beanstream(object):
         """ Initialize the gateway.
 
         Keyword arguments:
-            hash_validation: True to enable; default disabled. Note that
-                hash_validation and username_validation may not be enabled
-                simultaneously.
-            username_validation: True to enable; default disabled. Note that
-                username_validation and hash_validation may not be enabled
-                simultaneously.
             require_cvd: True to enable; default disabled.
             require_billing_address: True to enable; default disabled.
         """
 
-        self.HASH_VALIDATION = options.get('hash_validation', False)
-        self.USERNAME_VALIDATION = options.get('username_validation', False)
         self.REQUIRE_CVD = options.get('require_cvd', False)
         self.REQUIRE_BILLING_ADDRESS = options.get('require_billing_address', False)
 
-        if self.HASH_VALIDATION and self.USERNAME_VALIDATION:
-            raise errors.ConfigurationException('Only one validation method may be specified')
-
         self.merchant_id = None
-        self.username = None
-        self.password = None
-        self.hashcode = None
+        self.login_company = None
+        self.payment_passcode = None
         self.payment_profile_passcode = None
+        self.reporting_passcode = None
 
-    def configure(self, merchant_id, login_company, login_user, login_password, **params):
+        #error testing
+        self.testErrorGenerator = None
+
+    def configure(self, merchant_id, **params):
         """ Configure the gateway.
-
-        Keyword arguments:
-            hashcode: required if hash validation is enabled.
-            hash_algorithm: required if hash validation is enabled; one of MD5 or SHA1.
-            username: required if username validation is enabled.
-            password: required if username validation is enabled.
         """
         self.merchant_id = merchant_id
-        self.login_company = login_company
-        self.login_user = login_user
-        self.login_password = login_password
-        self.hashcode = params.get('hashcode', None)
-        self.hash_algorithm = params.get('hash_algorithm', None)
-        self.username = params.get('username', None)
-        self.password = params.get('password', None)
         self.payment_passcode = params.get('payment_passcode', None)
         self.payment_profile_passcode = params.get('payment_profile_passcode', None)
         self.recurring_billing_passcode = params.get('recurring_billing_passcode', None)
         self.reporting_passcode = params.get('reporting_passcode', None)
 
-        if self.HASH_VALIDATION and (not self.hashcode or not self.hash_algorithm):
-            raise errors.ConfigurationException('hashcode and algorithm must be specified')
-
-        if self.USERNAME_VALIDATION and (not self.username or not self.password):
-            raise errors.ConfigurationException('username and password must be specified')
-
-        if self.HASH_VALIDATION and self.hash_algorithm not in ('MD5', 'SHA1'):
-            raise errors.ConfigurationException('hash algorithm must be one of MD5 or SHA1')
-
+    '''not required, used for TESTING by generating errors on every transaction
+    '''
+    def setTestErrorGenerator(self, errorGenerator):
+        self.testErrorGenerator = errorGenerator
+        
+     
     def purchase(self, amount, card, billing_address=None):
         """ Returns a Purchase object with the specified options.
         """
@@ -197,29 +173,21 @@ class Beanstream(object):
         txn = recurring_billing.ModifyRecurringBillingAccount(self, account_id)
         return txn
 
-
-    def get_transaction_report(self):
-        """ Returns a TransactionReport object.
+    def query_transactions(self):
+        """ Query for transactions with many different criteria.
+            Set the criteria with set_query_params() or set_query_params_criteria()
         """
         txn = reports.TransactionReport(self)
+        txn.use_reports_api()
         return txn
 
-    def get_transaction_set_report(self, transaction_ids):
-        """ Returns a TransactionSetReport object for the specified set of
-        transaction IDs.
+    def get_transaction(self, transId):
+        """ Query for transactions with many different criteria.
+            Set the criteria with set_query_params() or set_query_params_criteria()
         """
-        txn = reports.TransactionSetReport(self, transaction_ids)
-
+        txn = reports.GetTransaction(self)
+        txn.use_payments_api()
+        txn.set_transaction_id(transId)
         return txn
 
-    def get_credit_card_lookup_report(self, card_number=None, txn_id=None):
-        """ Returns a CreditCardLookupReport object with the specified options.
-        """
-        txn = reports.CreditCardLookupReport(self)
-        if card_number:
-            txn.set_credit_card_number(card_number)
-        if txn_id:
-            txn.set_transaction_id(txn_id)
-
-        return txn
 

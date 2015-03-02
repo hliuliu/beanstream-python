@@ -33,6 +33,7 @@ class Purchase(transaction.Transaction):
         self.params['trnAmount'] = self._process_amount(amount)
         self.params['requestType'] = 'BACKEND'
         self.params['trnType'] = self.TRN_TYPES['purchase']
+        self.params['passcode'] = self.beanstream.payment_passcode
 
         self.has_billing_address = False
         self.has_credit_card = False
@@ -116,8 +117,9 @@ class PurchaseResponse(transaction.Response):
 
     def approved(self):
         ''' Boolean if the transaction was approved or not '''
-        print (self.resp)
-        return self.resp.get('trnApproved', ['0'])[0] == '1'
+        print("approved response:" +self.resp.get('trnApproved',['0'])[0])
+        print(self.resp)
+        return self.resp.get('trnApproved',['0'])[0] == '1'
 
     def auth_code(self):
         ''' if the transaction is approved this parameter will contain a unique bank-issued code '''
