@@ -113,7 +113,7 @@ class Transaction(object):
 			
         if res.code != 200:
             log.error('response code not OK: %s', res.code)
-            return errors.getMappedException(res.code)
+            return False
 
         
         body = res.read()
