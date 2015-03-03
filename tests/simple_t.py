@@ -282,21 +282,32 @@ class BeanstreamTests(unittest.TestCase):
         assert str(resp['id']) == transId
    
     def test_exceptions(self):
-        errorGenerator = errors.TestErrorGenerator(errors.BeanstreamApiException())
-        self.beanstream.setTestErrorGenerator(errorGenerator)
+        def test_one_exception(beanstreamexception):
+            errorGenerator = errors.TestErrorGenerator(beanstreamexception())
+            self.beanstream.setTestErrorGenerator(errorGenerator)
+            
+            today = date.today()
+            visa = self.approved_cards['visa']
+            card = billing.CreditCard(
+                'John Doe',
+                visa['number'],
+                str(today.month), str(today.year + 3),
+                visa['cvd'])
+    
+            txn = self.beanstream.purchase(50, card, self.billing_address)
+            txn.set_comments('test_exceptions')
+            resp = txn.commit()
+            assert isinstance(resp, beanstreamexception)
         
-        today = date.today()
-        visa = self.approved_cards['visa']
-        card = billing.CreditCard(
-            'John Doe',
-            visa['number'],
-            str(today.month), str(today.year + 3),
-            visa['cvd'])
-
-        txn = self.beanstream.purchase(50, card, self.billing_address)
-        txn.set_comments('test_exceptions')
-        resp = txn.commit()
-        assert isinstance(resp, errors.BeanstreamApiException)
+        expset=set()
+        #gather the set of exceptions corresponding to the httpstatus codes from 300 to 499
+        httpcode=300
+        while httpcode<500:
+            expset.add(errors.getMappedException(httpcode))
+            httpcode+=1
+        #test each exception
+        for e in expset:
+            test_one_exception(e)
         
         
         
